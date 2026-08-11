@@ -1,0 +1,13 @@
+{
+  "name": "@oklychee/prism-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:gateway": "pnpm --filter @oklychee/prism-gateway dev",
+    "build:gateway": "pnpm --filter @oklychee/prism-gateway build",
+    "dev:dashboard": "pnpm --filter @oklychee/prism-dashboard dev",
+    "build:dashboard": "pnpm --filter @oklychee/prism-dashboard build",
+    "build": "pnpm build:dashboard && pnpm build:gateway",
+    "dev": "pnpm build:dashboard && pnpm dev:gateway",
+    "deploy": "pnpm build && pnpm --filter @oklychee/prism-gateway deploy"
+  }
+}

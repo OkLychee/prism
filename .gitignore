@@ -1,0 +1,21 @@
+# Node & Package Managers
+node_modules/
+.pnpm-store/
+dist/
+build/
+.output/
+
+# Cloudflare & Wrangler
+.wrangler/
+.dev.vars
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# IDE & System
+.DS_Store
+*.log
+.vscode/
+.idea/

@@ -1,0 +1,20 @@
+name = "prism"
+main = "src/index.ts"
+compatibility_date = "2024-11-12"
+
+[assets]
+directory = "../dashboard/dist"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "prism-db"
+database_id = "YOUR_CLOUDFLARE_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[ai]
+binding = "AI"
+
+[[r2_buckets]]
+binding = "LOG_BUCKET"
+bucket_name = "prism-logs"
