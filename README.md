@@ -134,6 +134,25 @@ pnpm build
 pnpm --filter @oklychee/prism-gateway deploy
 ```
 
+### 4. (Optional) Cloudflare Turnstile Anti-Brute-Force Guard
+
+Prism has native, zero-friction support for Cloudflare Turnstile to prevent login brute-force attacks:
+
+> [!NOTE]
+> `VITE_TURNSTILE_SITE_KEY` is embedded into the frontend static assets at compile time. Make sure to set it in `apps/dashboard/.env` **before running `pnpm build`**.
+
+1. Create a Turnstile widget on your [Cloudflare Dashboard](https://dash.cloudflare.com/) (Free).
+2. Set your **Site Key** in `apps/dashboard/.env` **before building**:
+   ```bash
+   VITE_TURNSTILE_SITE_KEY="0x4AAAAAAA..."
+   ```
+3. Run `pnpm build` to compile the dashboard bundle with Turnstile enabled.
+4. Set your **Secret Key** in `apps/gateway` secrets:
+   ```bash
+   npx wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+*(If unconfigured, Turnstile verification is automatically disabled and will not block logins).*
+
 ---
 
 ## 📌 TODO / Roadmap

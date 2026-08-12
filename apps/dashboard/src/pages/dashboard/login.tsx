@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, KeyRound, ShieldCheck, ArrowRight, Globe, Check } from 'lucide-react';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { api } from '../../api';
+
+// Environment VITE_TURNSTILE_SITE_KEY or optional window config
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 export const LoginPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -10,11 +14,13 @@ export const LoginPage: React.FC = () => {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLangOpen, setIsLangOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   useEffect(() => {
     document.title = `${t('auth.title')} - Prism`;
@@ -42,18 +48,49 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     if (!username.trim()) return;
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setErrorMsg(t('auth.turnstileRequired'));
+      return;
+    }
+
     setLoading(true);
     setErrorMsg('');
 
     try {
-      await api.login({ username, password });
+      await api.login({ username, password, turnstile_token: turnstileToken });
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setErrorMsg(err.message || t('auth.invalidCredentials'));
+      if (TURNSTILE_SITE_KEY) {
+        turnstileRef.current?.reset();
+        setTurnstileToken('');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Detect dynamic theme for Turnstile widget (light / dark / auto)
+  const [turnstileTheme, setTurnstileTheme] = useState<'light' | 'dark' | 'auto'>('auto');
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      const isLight = document.documentElement.classList.contains('light');
+      if (isDark) {
+        setTurnstileTheme('dark');
+      } else if (isLight) {
+        setTurnstileTheme('light');
+      } else {
+        setTurnstileTheme('auto');
+      }
+    };
+
+    updateTheme();
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-color-bg-dark text-color-text-main flex items-center justify-center p-4 relative overflow-hidden font-sans">
@@ -159,9 +196,26 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Conditional Cloudflare Turnstile Verification Widget (Dynamic Theme) */}
+          {TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center my-2">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                onSuccess={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken('')}
+                onError={() => setTurnstileToken('')}
+                options={{
+                  theme: turnstileTheme,
+                  size: 'normal',
+                }}
+              />
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || Boolean(TURNSTILE_SITE_KEY && !turnstileToken)}
             className="w-full py-3 px-4 bg-primary-red hover:bg-primary-red/90 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
           >
             <span>{loading ? t('common.loading') : t('auth.loginBtn')}</span>

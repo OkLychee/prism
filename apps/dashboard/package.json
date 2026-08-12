@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.6.0",
     "@oklychee/prism-shared": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "i18next": "^26.3.6",

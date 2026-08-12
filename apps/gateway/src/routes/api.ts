@@ -11,12 +11,44 @@ import { getDb } from '../db';
 const api = new Hono<GatewayContext>();
 
 // 0. Public Auth Endpoints
+// Helper to verify Cloudflare Turnstile Token
+async function verifyTurnstileToken(secretKey: string, token: string, remoteIp?: string): Promise<boolean> {
+  try {
+    const formData = new FormData();
+    formData.append('secret', secretKey);
+    formData.append('response', token);
+    if (remoteIp) formData.append('remoteip', remoteIp);
+
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      body: formData,
+    });
+    const outcome: any = await res.json();
+    return outcome.success === true;
+  } catch (err) {
+    console.error('Turnstile verification request failed:', err);
+    return false;
+  }
+}
+
 // POST /api/auth/login - Admin Login
 api.post('/auth/login', async (c) => {
   try {
-    const { username, password } = await c.req.json();
+    const { username, password, turnstile_token } = await c.req.json();
     if (!username || typeof username !== 'string') {
       return c.json({ error: 'Username is required' }, 400);
+    }
+
+    // Optional Cloudflare Turnstile Security Guard
+    if (c.env.TURNSTILE_SECRET_KEY && c.env.TURNSTILE_SECRET_KEY.trim() !== '') {
+      if (!turnstile_token) {
+        return c.json({ error: 'Security verification required (Turnstile token missing)' }, 400);
+      }
+      const clientIp = c.req.header('cf-connecting-ip');
+      const isValidTurnstile = await verifyTurnstileToken(c.env.TURNSTILE_SECRET_KEY, turnstile_token, clientIp);
+      if (!isValidTurnstile) {
+        return c.json({ error: 'Turnstile verification failed. Please try again.' }, 403);
+      }
     }
 
     const db = getDb(c.env.DB);
@@ -43,7 +75,7 @@ api.post('/auth/login', async (c) => {
       must_change_password: !hasConfiguredPasswordHash,
     });
   } catch (err: any) {
-    return c.json({ error: err.message || 'Login failed' }, 500);
+      return c.json({ error: err.message || 'Login failed' }, 500);
   }
 });
 

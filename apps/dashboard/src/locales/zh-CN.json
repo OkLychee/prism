@@ -166,6 +166,7 @@
     "loginSuccess": "登录成功！",
     "logout": "退出登录",
     "invalidCredentials": "账号或密码错误",
+    "turnstileRequired": "请完成人机验证后再登录",
     "mustChangePasswordTitle": "修改初始密码",
     "mustChangePasswordSubtitle": "检测到您当前正使用初始密码登录。请先重置管理员密码后再继续使用。",
     "newPassword": "新密码",

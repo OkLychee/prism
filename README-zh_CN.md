@@ -134,6 +134,25 @@ pnpm build
 pnpm --filter @oklychee/prism-gateway deploy
 ```
 
+### 4. (可选) Cloudflare Turnstile 防暴力破解验证
+
+Prism 原生支持一键接入 Cloudflare Turnstile 验证码，有效防御管理后台密码暴力猜解：
+
+> [!NOTE]
+> `VITE_TURNSTILE_SITE_KEY` 会在编译期直接打包注入至前端产物中。请务必在**执行 `pnpm build` 前**完成 `.env` 配置文件写入。
+
+1. 在 [Cloudflare 控制台](https://dash.cloudflare.com/) 免费创建一个 Turnstile Widget。
+2. 在 **打包编译之前**，于 `apps/dashboard/.env` 中配置您的 **Site Key**（公钥）：
+   ```bash
+   VITE_TURNSTILE_SITE_KEY="0x4AAAAAAA..."
+   ```
+3. 执行 `pnpm build` 进行打包预渲染。
+4. 在 `apps/gateway` 中注入您的 **Secret Key**（私钥）：
+   ```bash
+   npx wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+*(如不配置密钥，系统会自动关闭 Turnstile 拦截，不影响正常登录流程)。*
+
 ---
 
 ## 📌 TODO / 未来规划

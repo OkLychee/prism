@@ -72,6 +72,7 @@ export interface SystemSettingsPayload {
 export interface LoginPayload {
   username: string;
   password?: string;
+  turnstile_token?: string;
 }
 
 export interface LoginResponse {

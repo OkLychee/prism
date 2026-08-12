@@ -166,6 +166,7 @@
     "loginSuccess": "Login Successful!",
     "logout": "Sign Out",
     "invalidCredentials": "Invalid username or password",
+    "turnstileRequired": "Please complete the Turnstile verification first",
     "mustChangePasswordTitle": "Change Default Password",
     "mustChangePasswordSubtitle": "You are using the default system password. Please update your admin password before proceeding.",
     "newPassword": "New Admin Password",
