@@ -125,16 +125,7 @@ npx wrangler r2 bucket create prism-logs
 pnpm --filter @oklychee/prism-gateway db:migrate:remote
 ```
 
-### 3. Build & Deploy to Cloudflare Workers
-
-Build static SSG assets and deploy to Cloudflare:
-
-```bash
-pnpm build
-pnpm --filter @oklychee/prism-gateway deploy
-```
-
-### 4. (Optional) Cloudflare Turnstile Anti-Brute-Force Guard
+### 3. (Optional) Cloudflare Turnstile Anti-Brute-Force Guard
 
 Prism has native, zero-friction support for Cloudflare Turnstile to prevent login brute-force attacks:
 
@@ -152,6 +143,15 @@ Prism has native, zero-friction support for Cloudflare Turnstile to prevent logi
    npx wrangler secret put TURNSTILE_SECRET_KEY
    ```
 *(If unconfigured, Turnstile verification is automatically disabled and will not block logins).*
+
+### 4. Build & Deploy to Cloudflare Workers
+
+Build static SSG assets and deploy to Cloudflare:
+
+```bash
+pnpm build
+pnpm --filter @oklychee/prism-gateway deploy
+```
 
 ---
 

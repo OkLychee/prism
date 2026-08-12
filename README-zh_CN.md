@@ -125,16 +125,7 @@ npx wrangler r2 bucket create prism-logs
 pnpm --filter @oklychee/prism-gateway db:migrate:remote
 ```
 
-### 3. 构建与部署至 Cloudflare Workers
-
-构建 SSG 静态预渲染产物并部署网关至 Cloudflare：
-
-```bash
-pnpm build
-pnpm --filter @oklychee/prism-gateway deploy
-```
-
-### 4. (可选) Cloudflare Turnstile 防暴力破解验证
+### 3. (可选) Cloudflare Turnstile 防暴力破解验证
 
 Prism 原生支持一键接入 Cloudflare Turnstile 验证码，有效防御管理后台密码暴力猜解：
 
@@ -152,6 +143,15 @@ Prism 原生支持一键接入 Cloudflare Turnstile 验证码，有效防御管�
    npx wrangler secret put TURNSTILE_SECRET_KEY
    ```
 *(如不配置密钥，系统会自动关闭 Turnstile 拦截，不影响正常登录流程)。*
+
+### 4. 构建与部署至 Cloudflare Workers
+
+构建 SSG 静态预渲染产物并部署网关至 Cloudflare：
+
+```bash
+pnpm build
+pnpm --filter @oklychee/prism-gateway deploy
+```
 
 ---
 
