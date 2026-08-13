@@ -66,6 +66,7 @@
     "cost": "费用",
     "userPromptBadge": "主动输入",
     "autoLoopBadge": "Agent 内部循环",
+    "repeatedLoopBadge": "重复自循环",
     "empty": "暂无交互记录"
   },
   "upstreams": {

@@ -33,6 +33,7 @@ export const CandidateTimelineDetailPage: React.FC<Props> = ({ keys }) => {
         keyId: targetId,
         limit: PAGE_SIZE,
         offset: 0,
+        order: 'asc',
       });
       setDetailLogs(res.logs || []);
       setHasMore(res.hasMore);
@@ -50,6 +51,7 @@ export const CandidateTimelineDetailPage: React.FC<Props> = ({ keys }) => {
       keyId: targetId,
       limit: PAGE_SIZE,
       offset: nextOffset,
+      order: 'asc',
     });
 
     setDetailLogs((prev) => {

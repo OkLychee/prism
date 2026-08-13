@@ -58,12 +58,14 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     async function loadData() {
       fetchKeys();
-      const fetchedLogs = await api.getLogs();
-      setLogs(fetchedLogs || []);
       fetchUpstreams();
+      if (activeTab === 'overview') {
+        const fetchedLogs = await api.getLogs();
+        setLogs(fetchedLogs || []);
+      }
     }
     loadData();
-  }, []);
+  }, [activeTab]);
 
   const handleKeyCreated = (newKey: InterviewKey) => {
     setKeys((prev) => [newKey, ...prev]);

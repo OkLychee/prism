@@ -33,11 +33,15 @@ export interface RequestLog {
   user_prompt_count: number;
   system_prompt?: string;
   user_prompt?: string;
+  user_prompt_hash?: string;
   full_payload?: string;
   response_content?: string;
   r2_log_key?: string;
+  is_repeated_loop?: number;
   prompt_tokens: number;
   completion_tokens: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
   cost_usd: number;
   duration_ms: number;
   created_at: number;

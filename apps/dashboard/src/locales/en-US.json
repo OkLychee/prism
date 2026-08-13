@@ -66,6 +66,7 @@
     "cost": "Cost",
     "userPromptBadge": "Direct Prompt",
     "autoLoopBadge": "Agent Auto-Loop",
+    "repeatedLoopBadge": "Repeated Loop",
     "empty": "No interaction logs match the filter"
   },
   "upstreams": {

@@ -238,6 +238,8 @@ export async function proxyAndAuditRequest(
     const [clientStream, auditStream] = upstreamResponse.body.tee();
     let promptTokens = 0;
     let completionTokens = 0;
+    let cacheReadInputTokens = 0;
+    let cacheCreationInputTokens = 0;
     let responseContent = '';
 
     ctx.waitUntil(
@@ -263,27 +265,46 @@ export async function proxyAndAuditRequest(
 
             try {
               const parsed = JSON.parse(dataStr);
-              // Extract text content chunk
+              // Extract text content chunk (Supports Chat Completions & Responses API)
               if (parsed.choices?.[0]?.delta?.content) {
-                if (responseContent.length < 4000) {
+                if (responseContent.length < 50000) {
                   responseContent += parsed.choices[0].delta.content;
                 }
               } else if (parsed.delta?.text) {
-                if (responseContent.length < 4000) {
+                if (responseContent.length < 50000) {
                   responseContent += parsed.delta.text;
+                }
+              } else if (typeof parsed.delta === 'string') {
+                if (responseContent.length < 50000) {
+                  responseContent += parsed.delta;
+                }
+              } else if (parsed.type === 'response.text.delta' && typeof parsed.delta === 'string') {
+                if (responseContent.length < 50000) {
+                  responseContent += parsed.delta;
+                }
+              } else if (parsed.item?.content?.[0]?.text) {
+                // OpenAI Responses API item completion
+                if (!responseContent && responseContent.length < 50000) {
+                  responseContent = parsed.item.content[0].text;
                 }
               }
 
               // Extract Token usage from SSE stream
-              // 1. OpenAI stream_options: { include_usage: true } chunk
-              // 2. Anthropic message_delta or message_start usage
-              if (parsed.usage) {
-                promptTokens = parsed.usage.prompt_tokens || parsed.usage.input_tokens || promptTokens;
-                completionTokens = parsed.usage.completion_tokens || parsed.usage.output_tokens || completionTokens;
+              // 1. OpenAI Chat Completions stream_options: { include_usage: true }
+              // 2. OpenAI Responses API (response.completed / response.done / response.output_item.done)
+              // 3. Anthropic message_delta / message_start
+              const usageObj = parsed.usage || parsed.response?.usage;
+              if (usageObj) {
+                promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? promptTokens;
+                completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? completionTokens;
+                cacheReadInputTokens = usageObj.prompt_tokens_details?.cached_tokens ?? usageObj.cache_read_input_tokens ?? cacheReadInputTokens;
+                cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? cacheCreationInputTokens;
               } else if (parsed.type === 'message_start' && parsed.message?.usage) {
-                promptTokens = parsed.message.usage.input_tokens || promptTokens;
+                promptTokens = parsed.message.usage.input_tokens ?? promptTokens;
+                cacheReadInputTokens = parsed.message.usage.cache_read_input_tokens ?? cacheReadInputTokens;
+                cacheCreationInputTokens = parsed.message.usage.cache_creation_input_tokens ?? cacheCreationInputTokens;
               } else if (parsed.type === 'message_delta' && parsed.usage) {
-                completionTokens = parsed.usage.output_tokens || completionTokens;
+                completionTokens = parsed.usage.output_tokens ?? completionTokens;
               }
             } catch {
               // Ignore non-JSON SSE lines
@@ -291,12 +312,14 @@ export async function proxyAndAuditRequest(
           }
         }
 
-        const totalTokens = promptTokens + completionTokens;
+        // Quota deduction: Only charge uncached prompt tokens + completion tokens
+        const uncachedPromptTokens = Math.max(0, promptTokens - cacheReadInputTokens);
+        const quotaDeductionTokens = uncachedPromptTokens + completionTokens;
         const durationMs = Date.now() - startTime;
         const logId = crypto.randomUUID();
 
-        if (totalTokens > 0) {
-          await keyService.addQuotaUsed(keyRecord.id, totalTokens);
+        if (quotaDeductionTokens > 0) {
+          await keyService.addQuotaUsed(keyRecord.id, quotaDeductionTokens);
         }
 
         const storageEngine = (globalSettings.log_storage_engine as 'd1' | 'r2') || 'd1';
@@ -311,6 +334,8 @@ export async function proxyAndAuditRequest(
             responseContent,
             promptTokens,
             completionTokens,
+            cacheReadInputTokens,
+            cacheCreationInputTokens,
             durationMs,
             candidateName: keyRecord.candidate_name,
           },
@@ -342,6 +367,8 @@ export async function proxyAndAuditRequest(
       (async () => {
         let promptTokens = 0;
         let completionTokens = 0;
+        let cacheReadInputTokens = 0;
+        let cacheCreationInputTokens = 0;
         let responseContent = '';
 
         try {
@@ -349,20 +376,24 @@ export async function proxyAndAuditRequest(
           responseContent = resText;
 
           const resJson = JSON.parse(resText);
-          if (resJson.usage) {
-            promptTokens = resJson.usage.prompt_tokens || resJson.usage.input_tokens || 0;
-            completionTokens = resJson.usage.completion_tokens || resJson.usage.output_tokens || 0;
+          const usageObj = resJson.usage || resJson.response?.usage;
+          if (usageObj) {
+            promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? 0;
+            completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? 0;
+            cacheReadInputTokens = usageObj.prompt_tokens_details?.cached_tokens ?? usageObj.cache_read_input_tokens ?? 0;
+            cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? 0;
           }
         } catch {
           // Ignore parsing errors
         }
 
-        const totalTokens = promptTokens + completionTokens;
+        const uncachedPromptTokens = Math.max(0, promptTokens - cacheReadInputTokens);
+        const quotaDeductionTokens = uncachedPromptTokens + completionTokens;
         const durationMs = Date.now() - startTime;
         const logId = crypto.randomUUID();
 
-        if (totalTokens > 0) {
-          await keyService.addQuotaUsed(keyRecord.id, totalTokens);
+        if (quotaDeductionTokens > 0) {
+          await keyService.addQuotaUsed(keyRecord.id, quotaDeductionTokens);
         }
 
         const storageEngine = (globalSettings.log_storage_engine as 'd1' | 'r2') || 'd1';
@@ -377,6 +408,8 @@ export async function proxyAndAuditRequest(
             responseContent,
             promptTokens,
             completionTokens,
+            cacheReadInputTokens,
+            cacheCreationInputTokens,
             durationMs,
             candidateName: keyRecord.candidate_name,
           },

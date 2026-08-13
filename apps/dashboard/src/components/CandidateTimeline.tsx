@@ -62,36 +62,38 @@ export const CandidateTimeline: React.FC<Props> = ({
   useEffect(() => {
     if (!onLoadMore || !hasMore || isLoadingMore) return;
 
+    const el = bottomObserverRef.current;
+    if (!el) return;
+
+    // Find the scrollable container (<main className="flex-1 overflow-y-auto">)
+    const scrollContainer = el.closest('main');
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           onLoadMore();
         }
       },
-      { threshold: 0.2 }
+      { root: scrollContainer, rootMargin: '200px', threshold: 0 }
     );
 
-    if (bottomObserverRef.current) {
-      observer.observe(bottomObserverRef.current);
-    }
+    observer.observe(el);
 
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, isLoadingMore, onLoadMore]);
+  }, [hasMore, isLoadingMore, onLoadMore, logs.length]);
 
-  // Filter and sort logs chronologically (ascending time for interview review)
-  const filteredLogs = logs
-    .filter(log => {
-      if (selectedCandidateId && selectedCandidateId !== 'all' && log.key_id !== selectedCandidateId) {
-        return false;
-      }
-      if (userPromptOnly && log.user_prompt_count === 0) {
-        return false;
-      }
-      return true;
-    })
-    .sort((a, b) => a.created_at - b.created_at);
+  // Filter logs for interview review
+  const filteredLogs = logs.filter(log => {
+    if (selectedCandidateId && selectedCandidateId !== 'all' && log.key_id !== selectedCandidateId) {
+      return false;
+    }
+    if (userPromptOnly && (log.user_prompt_count === 0 || Boolean(log.is_repeated_loop))) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -122,7 +124,8 @@ export const CandidateTimeline: React.FC<Props> = ({
           </div>
         ) : (
           filteredLogs.map((log) => {
-            const isDirectUserPrompt = log.user_prompt_count > 0;
+            const isRepeatedLoop = Boolean(log.is_repeated_loop);
+            const isDirectUserPrompt = log.user_prompt_count > 0 && !isRepeatedLoop;
             const isSystemExpanded = !!expandedSystemPrompts[log.id];
 
             return (
@@ -166,6 +169,12 @@ export const CandidateTimeline: React.FC<Props> = ({
                           <span>{t('timeline.autoLoopBadge')}</span>
                         </span>
                       )}
+
+                      {Boolean(log.is_repeated_loop) && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center space-x-1 animate-pulse">
+                          <span>⚠️ {t('timeline.repeatedLoopBadge')}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-4 text-xs font-mono text-color-text-muted">
@@ -173,9 +182,21 @@ export const CandidateTimeline: React.FC<Props> = ({
                         <Clock className="w-3.5 h-3.5 text-color-text-muted/70" />
                         <span>{log.duration_ms}ms</span>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <Coins className="w-3.5 h-3.5 text-amber-500/80" />
-                        <span>{(log.prompt_tokens + log.completion_tokens).toLocaleString()} tokens</span>
+                      <div className="flex items-center space-x-2 text-[11px] font-mono">
+                        <div className="flex items-center space-x-1" title="Uncached Input Tokens + Completion Tokens (Charged Quota)">
+                          <Coins className="w-3.5 h-3.5 text-amber-500/80" />
+                          <span>{(log.prompt_tokens + log.completion_tokens).toLocaleString()} tokens</span>
+                        </div>
+                        {Boolean(log.cache_read_input_tokens) && (
+                          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20" title="Cache Read (Discounted Input)">
+                            ⚡ {log.cache_read_input_tokens?.toLocaleString()} read
+                          </span>
+                        )}
+                        {Boolean(log.cache_creation_input_tokens) && (
+                          <span className="text-[10px] text-sky-400 font-mono bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20" title="Cache Write / Creation Input">
+                            💾 {log.cache_creation_input_tokens?.toLocaleString()} write
+                          </span>
+                        )}
                       </div>
                       <span className="text-color-text-muted/70">
                         {new Date(log.created_at).toLocaleTimeString()}
@@ -221,7 +242,12 @@ export const CandidateTimeline: React.FC<Props> = ({
 
                   {/* AI Response Preview / Full Content */}
                   {(() => {
-                    const effectiveResponse = loadedDetails[log.id]?.response_content || log.response_content;
+                    const loadedDetail = loadedDetails[log.id];
+                    const rawResponse = loadedDetail ? loadedDetail.response_content : log.response_content;
+                    const effectiveResponse = typeof rawResponse === 'object' && rawResponse !== null
+                      ? JSON.stringify(rawResponse, null, 2)
+                      : rawResponse;
+
                     const isStoredInR2 = Boolean(log.r2_log_key);
 
                     if (effectiveResponse) {
@@ -278,6 +304,15 @@ export const CandidateTimeline: React.FC<Props> = ({
               <Loader2 className="w-4 h-4 animate-spin text-primary-red" />
               <span>正在加载更多历史对话...</span>
             </div>
+          )}
+          {!isLoadingMore && hasMore && onLoadMore && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              className="px-4 py-2 bg-color-bg-sidebar border border-theme-border hover:border-primary-red/50 rounded-xl text-xs font-medium text-color-text-muted hover:text-primary-red transition cursor-pointer"
+            >
+              点击加载更多历史对话
+            </button>
           )}
         </div>
       </div>

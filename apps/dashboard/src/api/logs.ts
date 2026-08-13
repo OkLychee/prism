@@ -5,6 +5,7 @@ export interface GetLogsOptions {
   keyId?: string;
   limit?: number;
   offset?: number;
+  order?: 'asc' | 'desc';
 }
 
 export interface GetLogsResult {
@@ -27,6 +28,7 @@ export const logsApi = {
         if (options.keyId) params.append('key_id', options.keyId);
         if (options.limit !== undefined) params.append('limit', options.limit.toString());
         if (options.offset !== undefined) params.append('offset', options.offset.toString());
+        if (options.order) params.append('order', options.order);
       }
 
       const queryString = params.toString();
@@ -52,6 +54,7 @@ export const logsApi = {
       if (options?.keyId) params.append('key_id', options.keyId);
       if (options?.limit !== undefined) params.append('limit', options.limit.toString());
       if (options?.offset !== undefined) params.append('offset', options.offset.toString());
+      if (options?.order) params.append('order', options.order);
 
       const queryString = params.toString();
       if (queryString) {
@@ -63,7 +66,7 @@ export const logsApi = {
       const data = await res.json();
       return {
         logs: data.data || [],
-        hasMore: !!data.has_more,
+        hasMore: data.hasMore !== undefined ? !!data.hasMore : !!data.has_more,
         limit: data.limit || 50,
         offset: data.offset || 0,
       };

@@ -8,6 +8,13 @@
       "when": 1786444124950,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786615503797,
+      "tag": "0001_add_cache_tokens_and_loop_detection_to_request_logs",
+      "breakpoints": true
     }
   ]
 }

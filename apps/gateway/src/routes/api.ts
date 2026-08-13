@@ -224,12 +224,14 @@ api.get('/logs', async (c) => {
   const keyId = c.req.query('key_id');
   const limitStr = c.req.query('limit');
   const offsetStr = c.req.query('offset');
+  const orderParam = c.req.query('order');
 
   const limit = limitStr ? parseInt(limitStr, 10) : 50;
   const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+  const order = orderParam === 'asc' ? 'asc' : 'desc';
 
   const auditService = new AuditLogService(getDb(c.env.DB));
-  const data = await auditService.listLogs(keyId, limit, offset);
+  const data = await auditService.listLogs(keyId, limit, offset, order);
   const hasMore = data.length >= limit;
 
   return c.json({ data, hasMore });
