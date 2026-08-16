@@ -4,6 +4,7 @@ export interface Env {
   AI?: any;
   ASSETS?: Fetcher;
   TURNSTILE_SECRET_KEY?: string;
+  DEBUG?: string;
 }
 
 export type GatewayContext = {

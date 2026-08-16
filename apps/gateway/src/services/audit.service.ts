@@ -88,6 +88,7 @@ export class AuditLogService {
       cacheCreationInputTokens?: number;
       durationMs: number;
       candidateName?: string;
+      debugTrace?: any;
     },
     storageEngine: 'd1' | 'r2' = 'd1',
     r2Bucket?: R2Bucket
@@ -121,12 +122,24 @@ export class AuditLogService {
     let fullPayloadToSave: string | undefined = JSON.stringify(data.bodyJson);
     let responseContentToSave: string | undefined = data.responseContent;
 
+    // Save DEBUG trace log file to R2 if debugTrace is supplied
+    if (r2Bucket && data.debugTrace) {
+      try {
+        const dateISO = new Date(createdAt).toISOString().split('T')[0];
+        const debugR2Key = `debug_logs/${dateISO}/${data.keyId}-${createdAt}-${data.logId.substring(0, 8)}-debug.json`;
+        await r2Bucket.put(debugR2Key, JSON.stringify(data.debugTrace, null, 2), {
+          httpMetadata: { contentType: 'application/json' },
+        });
+      } catch (err) {
+        console.error('Failed to write debug trace log to R2:', err);
+      }
+    }
+
     // Dispatch to R2 if storageEngine is 'r2' and LOG_BUCKET is available
     if (storageEngine === 'r2' && r2Bucket) {
       try {
         const dateISO = new Date(createdAt).toISOString().split('T')[0]; // e.g. 2026-08-11
-        const sanitizeName = (data.candidateName || 'candidate').replace(/[^a-zA-Z0-9_\-]/g, '_');
-        r2LogKey = `logs/${dateISO}/${data.keyId}-${sanitizeName}-${createdAt}-${data.logId.substring(0, 8)}.json`;
+        r2LogKey = `logs/${dateISO}/${data.keyId}-${createdAt}-${data.logId.substring(0, 8)}.json`;
 
         const logPayloadObject = {
           log_id: data.logId,

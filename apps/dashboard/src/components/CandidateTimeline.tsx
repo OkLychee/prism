@@ -182,22 +182,33 @@ export const CandidateTimeline: React.FC<Props> = ({
                         <Clock className="w-3.5 h-3.5 text-color-text-muted/70" />
                         <span>{log.duration_ms}ms</span>
                       </div>
-                      <div className="flex items-center space-x-2 text-[11px] font-mono">
-                        <div className="flex items-center space-x-1" title="Uncached Input Tokens + Completion Tokens (Charged Quota)">
-                          <Coins className="w-3.5 h-3.5 text-amber-500/80" />
-                          <span>{(log.prompt_tokens + log.completion_tokens).toLocaleString()} tokens</span>
-                        </div>
-                        {Boolean(log.cache_read_input_tokens) && (
-                          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20" title="Cache Read (Discounted Input)">
-                            ⚡ {log.cache_read_input_tokens?.toLocaleString()} read
-                          </span>
-                        )}
-                        {Boolean(log.cache_creation_input_tokens) && (
-                          <span className="text-[10px] text-sky-400 font-mono bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20" title="Cache Write / Creation Input">
-                            💾 {log.cache_creation_input_tokens?.toLocaleString()} write
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const cacheRead = log.cache_read_input_tokens || 0;
+                        const chargedTokens = Math.max(0, log.prompt_tokens - cacheRead) + log.completion_tokens;
+                        const totalTokens = log.prompt_tokens + log.completion_tokens;
+
+                        return (
+                          <div className="flex items-center space-x-1.5 text-[11px] font-mono">
+                            <div className="flex items-center space-x-1" title={`Uncached Input (${Math.max(0, log.prompt_tokens - cacheRead).toLocaleString()}) + Completion (${log.completion_tokens.toLocaleString()}) = Charged Quota (Total: ${totalTokens.toLocaleString()})`}>
+                              <Coins className="w-3.5 h-3.5 text-amber-500/80" />
+                              <span>{chargedTokens.toLocaleString()} tokens</span>
+                            </div>
+                            {Boolean(cacheRead) && (
+                              <>
+                                <span className="text-color-text-muted/60 font-sans text-xs">+</span>
+                                <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20" title={`Cache Read (${cacheRead.toLocaleString()} tokens - 0% charged)`}>
+                                  ⚡ {cacheRead.toLocaleString()} cached
+                                </span>
+                              </>
+                            )}
+                            {Boolean(log.cache_creation_input_tokens) && (
+                              <span className="text-[10px] text-sky-400 font-mono bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20" title="Cache Write / Creation Input">
+                                💾 {log.cache_creation_input_tokens?.toLocaleString()} write
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <span className="text-color-text-muted/70">
                         {new Date(log.created_at).toLocaleTimeString()}
                       </span>

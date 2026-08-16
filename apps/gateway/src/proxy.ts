@@ -208,6 +208,25 @@ export async function proxyAndAuditRequest(
     }
   }
 
+  const isDebug = env.DEBUG === 'true' || env.DEBUG === '1';
+  const debugTrace: any = isDebug
+    ? {
+        incoming_request: {
+          protocol,
+          upstream_path: upstreamPath,
+          headers: Object.fromEntries(request.headers.entries()),
+          body: bodyJson,
+          translated_payload: isAnthropicToOpenAi ? forwardedPayload : undefined,
+        },
+        outgoing_upstream: {
+          target_url: targetUrl,
+          headers: Object.fromEntries(headers.entries()),
+        },
+        upstream_response: {},
+        parsed_chunks: [],
+      }
+    : undefined;
+
   // Forward Request
   let upstreamResponse: Response;
   try {
@@ -216,7 +235,18 @@ export async function proxyAndAuditRequest(
       headers,
       body: JSON.stringify(forwardedPayload),
     });
+
+    if (debugTrace) {
+      debugTrace.upstream_response = {
+        status: upstreamResponse.status,
+        status_text: upstreamResponse.statusText,
+        headers: Object.fromEntries(upstreamResponse.headers.entries()),
+      };
+    }
   } catch (err: any) {
+    if (debugTrace) {
+      debugTrace.error = err.message || String(err);
+    }
     return new Response(
       JSON.stringify({
         error: {
@@ -265,6 +295,11 @@ export async function proxyAndAuditRequest(
 
             try {
               const parsed = JSON.parse(dataStr);
+
+              if (debugTrace && debugTrace.parsed_chunks.length < 500) {
+                debugTrace.parsed_chunks.push(parsed);
+              }
+
               // Extract text content chunk (Supports Chat Completions & Responses API)
               if (parsed.choices?.[0]?.delta?.content) {
                 if (responseContent.length < 50000) {
@@ -290,14 +325,18 @@ export async function proxyAndAuditRequest(
               }
 
               // Extract Token usage from SSE stream
-              // 1. OpenAI Chat Completions stream_options: { include_usage: true }
-              // 2. OpenAI Responses API (response.completed / response.done / response.output_item.done)
-              // 3. Anthropic message_delta / message_start
+              // 1. OpenAI Chat Completions (prompt_tokens_details.cached_tokens / usage.prompt_tokens)
+              // 2. OpenAI Responses API (response.completed / response.done: usage.input_tokens_details.cached_tokens / input_tokens)
+              // 3. Anthropic message_delta / message_start (cache_read_input_tokens)
               const usageObj = parsed.usage || parsed.response?.usage;
               if (usageObj) {
                 promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? promptTokens;
                 completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? completionTokens;
-                cacheReadInputTokens = usageObj.prompt_tokens_details?.cached_tokens ?? usageObj.cache_read_input_tokens ?? cacheReadInputTokens;
+                cacheReadInputTokens =
+                  usageObj.prompt_tokens_details?.cached_tokens ??
+                  usageObj.input_tokens_details?.cached_tokens ??
+                  usageObj.cache_read_input_tokens ??
+                  cacheReadInputTokens;
                 cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? cacheCreationInputTokens;
               } else if (parsed.type === 'message_start' && parsed.message?.usage) {
                 promptTokens = parsed.message.usage.input_tokens ?? promptTokens;
@@ -338,6 +377,7 @@ export async function proxyAndAuditRequest(
             cacheCreationInputTokens,
             durationMs,
             candidateName: keyRecord.candidate_name,
+            debugTrace,
           },
           storageEngine,
           env.LOG_BUCKET
@@ -376,11 +416,18 @@ export async function proxyAndAuditRequest(
           responseContent = resText;
 
           const resJson = JSON.parse(resText);
+          if (debugTrace) {
+            debugTrace.non_streaming_response_body = resJson;
+          }
           const usageObj = resJson.usage || resJson.response?.usage;
           if (usageObj) {
             promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? 0;
             completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? 0;
-            cacheReadInputTokens = usageObj.prompt_tokens_details?.cached_tokens ?? usageObj.cache_read_input_tokens ?? 0;
+            cacheReadInputTokens =
+              usageObj.prompt_tokens_details?.cached_tokens ??
+              usageObj.input_tokens_details?.cached_tokens ??
+              usageObj.cache_read_input_tokens ??
+              0;
             cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? 0;
           }
         } catch {
@@ -412,6 +459,7 @@ export async function proxyAndAuditRequest(
             cacheCreationInputTokens,
             durationMs,
             candidateName: keyRecord.candidate_name,
+            debugTrace,
           },
           storageEngine,
           env.LOG_BUCKET
