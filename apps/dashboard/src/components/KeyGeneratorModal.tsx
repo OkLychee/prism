@@ -265,7 +265,7 @@ export const KeyGeneratorModal: React.FC<Props> = ({ onKeyCreated, upstreams = [
             <div className="space-y-2">
               <span className="text-xs text-color-text-muted font-medium">{t('keyGenerator.configGuide')}</span>
               <div className="bg-color-bg-card p-4 rounded-xl border border-theme-border font-mono text-xs text-status-green overflow-x-auto relative group">
-                <pre>{getAgentGuides(generatedKey)[selectedAgent].config}</pre>
+                <pre>{getAgentGuides(generatedKey, selectedModels)[selectedAgent].config}</pre>
               </div>
             </div>
 
@@ -273,7 +273,7 @@ export const KeyGeneratorModal: React.FC<Props> = ({ onKeyCreated, upstreams = [
             <div className="space-y-2">
               <span className="text-xs text-color-text-muted font-medium">{t('keyGenerator.unsetGuide')}</span>
               <div className="bg-color-bg-card p-4 rounded-xl border border-theme-border font-mono text-xs text-primary-red overflow-x-auto">
-                <pre>{getAgentGuides(generatedKey)[selectedAgent].unset}</pre>
+                <pre>{getAgentGuides(generatedKey, selectedModels)[selectedAgent].unset}</pre>
               </div>
             </div>
           </div>
