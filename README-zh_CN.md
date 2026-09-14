@@ -16,7 +16,7 @@
   - 自动处理 OpenAI 与 Anthropic 格式之间的 Payload 请求转换、请求头 (`anthropic-version`) 透传、JSON 响应转换以及 SSE `TransformStream` 实时流事件转换。
 - **灵活的供应商支持 (Provider Factory)**：
   - **Cloudflare Workers AI**：原生支持运行 `@cf/*` 免费与高性价比模型矩阵，免配置即刻体验。
-  - **Cloudflare AI Gateway**：支持 Provider Native 托管路由（OpenAI, Anthropic, Google AI Studio, Grok/xAI, OpenRouter），支持 Cloudflare 统一计费或 Cloudflare 托管 BYOK。
+  - **Cloudflare AI Gateway**：支持 Provider Native 托管路由（OpenAI, Anthropic, Google AI Studio, Grok/xAI, OpenRouter，以及以 `custom-` 开头的自定义服务商），支持 Cloudflare 统一计费或 Cloudflare 托管 BYOK。
   - **自定义供应商 (BYOK)**：支持配置自建/第三方 Base URL 与私有 API Key。
 - **候选人密钥与额度管控**：
   - 快捷为求职者限制 Token 消耗总量、允许调用的模型白名单及失效到期时间。

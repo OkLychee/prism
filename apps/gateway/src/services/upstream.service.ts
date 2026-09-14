@@ -2,6 +2,21 @@ import { eq, like, desc, sql } from 'drizzle-orm';
 import type { UpstreamConfig } from '@oklychee/prism-shared';
 import { Database } from '../db';
 import { upstreamConfigs } from '../db/schema';
+import { CUSTOM_AIG_PROVIDER_PATTERN, isCustomAigProvider } from '../providers/custom';
+
+function resolveCfAigProvider(providerType: string, raw?: string): string {
+  const cfAigProvider = (raw || 'openai').trim();
+  if (providerType === 'cf_ai_gateway' && isCustomAigProvider(cfAigProvider)) {
+    const normalized = cfAigProvider.toLowerCase();
+    if (!CUSTOM_AIG_PROVIDER_PATTERN.test(normalized)) {
+      throw new Error(
+        `Invalid custom AI Gateway provider '${cfAigProvider}': must match 'custom-' followed by lowercase letters, digits, '-' or '_'`
+      );
+    }
+    return normalized;
+  }
+  return cfAigProvider;
+}
 
 export class UpstreamService {
   constructor(private db: Database) {}
@@ -48,7 +63,7 @@ export class UpstreamService {
     const id = `upstream_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const name = data.name || 'Custom Provider';
     const providerType = data.provider_type || 'cf_ai_gateway';
-    const cfAigProvider = data.cf_aig_provider || 'openai';
+    const cfAigProvider = resolveCfAigProvider(providerType, data.cf_aig_provider);
 
     let apiProtocol = data.api_protocol || 'openai';
     if (providerType === 'cf_ai_gateway' || providerType === 'cf_workers_ai') {
@@ -108,7 +123,7 @@ export class UpstreamService {
     }
   ) {
     const providerType = data.provider_type || 'cf_ai_gateway';
-    const cfAigProvider = data.cf_aig_provider || 'openai';
+    const cfAigProvider = resolveCfAigProvider(providerType, data.cf_aig_provider);
 
     let apiProtocol = data.api_protocol || 'openai';
     if (providerType === 'cf_ai_gateway' || providerType === 'cf_workers_ai') {
