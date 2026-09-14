@@ -64,7 +64,12 @@ export async function proxyAndAuditRequest(
   const cfApiToken = globalSettings.cf_api_token || '';
 
   // Target upstream protocol format (default to 'openai' if unspecified)
-  const upstreamProtocol = customConfig?.api_protocol || 'openai';
+  // Built-in Anthropic via AI Gateway serves both formats natively (/v1/messages & OpenAI-compatible
+  // /v1/chat/completions), so follow the client protocol instead of translating.
+  const isAigBuiltinAnthropic =
+    customConfig?.provider_type === 'cf_ai_gateway' &&
+    (customConfig.cf_aig_provider || '').toLowerCase().trim() === 'anthropic';
+  const upstreamProtocol = isAigBuiltinAnthropic ? protocol : customConfig?.api_protocol || 'openai';
 
   // Determine if cross-protocol translation is needed (Anthropic Agent -> OpenAI Upstream)
   const isAnthropicToOpenAi = protocol === 'anthropic' && upstreamProtocol === 'openai';
@@ -160,6 +165,7 @@ export async function proxyAndAuditRequest(
         upstreamApiKey,
         effectiveUpstreamPath,
         customBaseUrl: customConfig.base_url,
+        apiProtocol: upstreamProtocol as 'openai' | 'anthropic',
         incomingHeaders: request.headers,
       });
 

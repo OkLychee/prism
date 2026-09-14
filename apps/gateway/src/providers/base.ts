@@ -5,6 +5,7 @@ export interface ProviderHandlerParams {
   upstreamApiKey: string;
   effectiveUpstreamPath: string;
   customBaseUrl?: string;
+  apiProtocol?: 'openai' | 'anthropic';
   incomingHeaders?: Headers;
 }
 

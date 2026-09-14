@@ -74,6 +74,7 @@ export const UpstreamModal: React.FC<Props> = ({
 
   const isCustomAig = providerType === 'cf_ai_gateway' && cfAigProvider === CUSTOM_AIG_OPTION;
   const isCustomAigNameValid = CUSTOM_AIG_NAME_PATTERN.test(customAigName);
+  const showApiProtocol = providerType === 'custom' || isCustomAig;
 
   const handleApplyPreset = (preset: 'openai' | 'anthropic' | 'google' | 'grok' | 'openrouter' | 'cf_workers_ai') => {
     if (preset === 'cf_workers_ai') {
@@ -143,7 +144,7 @@ export const UpstreamModal: React.FC<Props> = ({
         name,
         provider_type: providerType,
         cf_aig_provider: isCustomAig ? `${CUSTOM_AIG_PREFIX}${customAigName}` : cfAigProvider,
-        api_protocol: providerType === 'custom' ? apiProtocol : 'openai',
+        api_protocol: showApiProtocol ? apiProtocol : 'openai',
         base_url: providerType === 'custom' ? baseUrl : '',
         available_models: modelsArray,
       };
@@ -322,8 +323,8 @@ export const UpstreamModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* API Protocol (Only visible when custom) */}
-          {providerType === 'custom' && (
+          {/* API Protocol (Only visible when custom endpoint or custom AI Gateway provider) */}
+          {showApiProtocol && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-color-text-muted">{t('upstreams.apiProtocol')}</label>
               <select

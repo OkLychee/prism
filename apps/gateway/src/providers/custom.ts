@@ -18,6 +18,11 @@ export class CustomAigProviderHandler implements ProviderHandler {
 
   buildRequest(params: ProviderHandlerParams): ProviderHandlerResult {
     const targetUrl = buildCfGatewayUrl(params.cfAccountId, params.cfGatewayId, this.slug, params.effectiveUpstreamPath);
+    if (params.apiProtocol === 'anthropic') {
+      const headers = buildCfHeaders(params.cfApiToken, params.upstreamApiKey, 'x-api-key', '');
+      headers['anthropic-version'] = params.incomingHeaders?.get('anthropic-version') || '2023-06-01';
+      return { targetUrl, headers };
+    }
     const headers = buildCfHeaders(params.cfApiToken, params.upstreamApiKey, 'Authorization', 'Bearer ');
     return { targetUrl, headers };
   }
