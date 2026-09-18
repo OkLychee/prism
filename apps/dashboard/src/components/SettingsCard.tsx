@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, Check, ShieldCheck, ShieldAlert, Trash2, User, Lock, Clock, Database, HardDrive } from 'lucide-react';
+import { Save, Check, ShieldCheck, ShieldAlert, Trash2, User, Lock, Clock, Database, HardDrive, Plug, RefreshCw, Copy } from 'lucide-react';
 import { DEFAULT_ADMIN_USERNAME } from '@oklychee/prism-shared';
 import { api } from '../api';
 import { Button, Badge } from './ui';
@@ -32,6 +32,11 @@ export const SettingsCard: React.FC = () => {
   // Log Storage Engine State ('d1' | 'r2')
   const [logStorageEngine, setLogStorageEngine] = useState<'d1' | 'r2'>('d1');
 
+  // MCP Server API Key (empty = MCP endpoint disabled)
+  const [mcpApiKey, setMcpApiKey] = useState('');
+  const [copiedField, setCopiedField] = useState<'key' | 'config' | null>(null);
+  const [isMcpKeyUpdating, setIsMcpKeyUpdating] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -49,6 +54,7 @@ export const SettingsCard: React.FC = () => {
     if (settings.log_storage_engine) {
       setLogStorageEngine(settings.log_storage_engine);
     }
+    setMcpApiKey(settings.mcp_api_key || '');
     setIsTokenConfigured(Boolean(settings.cf_api_token_configured));
     setCfApiTokenInput(''); // Reset user input after load
     setOldPassword('');
@@ -132,6 +138,59 @@ export const SettingsCard: React.FC = () => {
       setErrorMsg(err.message || 'Failed to clear token');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const mcpEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/mcp` : '/mcp';
+  const mcpClientConfig = JSON.stringify(
+    {
+      mcpServers: {
+        prism: {
+          type: 'http',
+          url: mcpEndpoint,
+          headers: { Authorization: `Bearer ${mcpApiKey || 'YOUR_KEY'}` },
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  // MCP keys are generated server-side and saved immediately; manual input is not supported
+  const handleGenerateMcpKey = async () => {
+    if (mcpApiKey && !window.confirm(t('settings.mcpRegenerateConfirm'))) return;
+    setErrorMsg('');
+    setIsMcpKeyUpdating(true);
+    try {
+      setMcpApiKey(await api.regenerateMcpKey());
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to generate MCP key');
+    } finally {
+      setIsMcpKeyUpdating(false);
+    }
+  };
+
+  const handleClearMcpKey = async () => {
+    if (!window.confirm(t('settings.mcpClearConfirm'))) return;
+    setErrorMsg('');
+    setIsMcpKeyUpdating(true);
+    try {
+      await api.clearMcpKey();
+      setMcpApiKey('');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to clear MCP key');
+    } finally {
+      setIsMcpKeyUpdating(false);
+    }
+  };
+
+  const handleCopy = async (field: 'key' | 'config', text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
     }
   };
 
@@ -393,6 +452,97 @@ export const SettingsCard: React.FC = () => {
                 className="w-full px-4 py-2.5 bg-color-bg-card border border-theme-border rounded-xl text-color-text-main text-xs font-mono placeholder-color-text-muted/60 focus:outline-none focus:border-primary-red transition"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Section 5: MCP Server Settings */}
+        <div className="space-y-4 pt-4 border-t border-theme-border">
+          <h3 className="text-xs font-bold text-color-text-main uppercase tracking-wider flex items-center space-x-2">
+            <Plug className="w-4 h-4 text-primary-red" />
+            <span>{t('settings.mcpSection')}</span>
+          </h3>
+
+          <p className="text-[11px] text-color-text-muted">{t('settings.mcpDesc')}</p>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-color-text-muted">{t('settings.mcpEndpoint')}</label>
+            <div className="w-full px-4 py-2.5 bg-color-bg-card border border-theme-border rounded-xl text-color-text-main text-xs font-mono break-all">
+              {mcpEndpoint}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-color-text-muted">{t('settings.mcpApiKey')}</label>
+              {mcpApiKey ? (
+                <Badge variant="green" icon={<ShieldCheck className="w-3 h-3" />}>
+                  {t('settings.mcpEnabled')}
+                </Badge>
+              ) : (
+                <Badge variant="amber" icon={<ShieldAlert className="w-3 h-3" />}>
+                  {t('settings.mcpDisabled')}
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={mcpApiKey}
+                readOnly
+                placeholder={t('settings.mcpApiKeyPlaceholder')}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 min-w-0 px-4 py-2.5 bg-color-bg-card border border-theme-border rounded-xl text-color-text-main text-xs font-mono placeholder-color-text-muted/60 focus:outline-none focus:border-primary-red transition"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isMcpKeyUpdating}
+                  icon={<RefreshCw className="w-3.5 h-3.5" />}
+                  onClick={handleGenerateMcpKey}
+                >
+                  {mcpApiKey ? t('settings.mcpRegenerate') : t('settings.mcpGenerate')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!mcpApiKey}
+                  icon={copiedField === 'key' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  onClick={() => handleCopy('key', mcpApiKey)}
+                >
+                  {copiedField === 'key' ? t('settings.mcpCopied') : t('settings.mcpCopy')}
+                </Button>
+                {mcpApiKey && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isMcpKeyUpdating}
+                    icon={<Trash2 className="w-3.5 h-3.5" />}
+                    onClick={handleClearMcpKey}
+                  >
+                    {t('settings.mcpClear')}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-color-text-muted">{t('settings.mcpApiKeyHint')}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-color-text-muted">{t('settings.mcpClientConfig')}</label>
+              <button
+                type="button"
+                onClick={() => handleCopy('config', mcpClientConfig)}
+                className="text-[11px] text-color-text-muted hover:text-color-text-main flex items-center space-x-1 transition cursor-pointer"
+              >
+                {copiedField === 'config' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedField === 'config' ? t('settings.mcpCopied') : t('settings.mcpCopy')}</span>
+              </button>
+            </div>
+            <pre className="w-full px-4 py-3 bg-color-bg-card border border-theme-border rounded-xl text-color-text-main text-[11px] font-mono overflow-x-auto">
+              {mcpClientConfig}
+            </pre>
           </div>
         </div>
 

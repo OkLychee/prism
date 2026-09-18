@@ -1,4 +1,4 @@
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, and, gt, desc, asc, count, max, sum } from 'drizzle-orm';
 import type { RequestLog } from '@oklychee/prism-shared';
 import { Database } from '../db';
 import { requestLogs } from '../db/schema';
@@ -11,29 +11,27 @@ export class AuditLogService {
     keyId?: string | null,
     limit: number = 50,
     offset: number = 0,
-    order: 'asc' | 'desc' = 'desc'
+    order: 'asc' | 'desc' = 'desc',
+    directPromptsOnly: boolean = false
   ): Promise<RequestLog[]> {
     const pageLimit = Math.max(1, Math.min(limit, 100));
     const pageOffset = Math.max(0, offset);
     const orderDirection = order === 'asc' ? asc(requestLogs.created_at) : desc(requestLogs.created_at);
 
-    let logs;
-    if (keyId) {
-      logs = await this.db
-        .select()
-        .from(requestLogs)
-        .where(eq(requestLogs.key_id, keyId))
-        .orderBy(orderDirection)
-        .limit(pageLimit)
-        .offset(pageOffset);
-    } else {
-      logs = await this.db
-        .select()
-        .from(requestLogs)
-        .orderBy(orderDirection)
-        .limit(pageLimit)
-        .offset(pageOffset);
+    // Direct prompts = requests carrying a user prompt that is not a repeat of the previous one (agent loop turns)
+    const conditions = [];
+    if (keyId) conditions.push(eq(requestLogs.key_id, keyId));
+    if (directPromptsOnly) {
+      conditions.push(gt(requestLogs.user_prompt_count, 0), eq(requestLogs.is_repeated_loop, 0));
     }
+
+    const logs = await this.db
+      .select()
+      .from(requestLogs)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(orderDirection)
+      .limit(pageLimit)
+      .offset(pageOffset);
 
     return logs.map((l) => ({
       ...l,
@@ -72,6 +70,61 @@ export class AuditLogService {
       cache_read_input_tokens: result.cache_read_input_tokens || 0,
       cache_creation_input_tokens: result.cache_creation_input_tokens || 0,
     };
+  }
+
+  /**
+   * Resolve the heavy payload/response fields of a log, reading from R2 when the record was archived there.
+   */
+  async loadLogContent(
+    logRecord: RequestLog,
+    r2Bucket?: R2Bucket
+  ): Promise<{ full_payload?: string; response_content?: string }> {
+    let fullPayload = logRecord.full_payload;
+    let responseContent = logRecord.response_content;
+
+    if (logRecord.r2_log_key && r2Bucket) {
+      try {
+        const r2Object = await r2Bucket.get(logRecord.r2_log_key);
+        if (r2Object) {
+          const parsed = JSON.parse(await r2Object.text());
+          fullPayload = JSON.stringify(parsed.full_payload || {});
+          responseContent = parsed.response_content || '';
+        }
+      } catch (err) {
+        console.error('Failed to read log from R2 bucket:', err);
+      }
+    }
+
+    return { full_payload: fullPayload, response_content: responseContent };
+  }
+
+  /**
+   * Aggregate per-key request statistics (request count, last activity, token totals).
+   */
+  async getStatsByKey(): Promise<
+    Record<string, { request_count: number; last_request_at: number | null; prompt_tokens: number; completion_tokens: number }>
+  > {
+    const rows = await this.db
+      .select({
+        key_id: requestLogs.key_id,
+        request_count: count(),
+        last_request_at: max(requestLogs.created_at),
+        prompt_tokens: sum(requestLogs.prompt_tokens),
+        completion_tokens: sum(requestLogs.completion_tokens),
+      })
+      .from(requestLogs)
+      .groupBy(requestLogs.key_id);
+
+    const stats: Record<string, { request_count: number; last_request_at: number | null; prompt_tokens: number; completion_tokens: number }> = {};
+    for (const row of rows) {
+      stats[row.key_id] = {
+        request_count: row.request_count,
+        last_request_at: row.last_request_at ?? null,
+        prompt_tokens: Number(row.prompt_tokens) || 0,
+        completion_tokens: Number(row.completion_tokens) || 0,
+      };
+    }
+    return stats;
   }
 
   async recordLog(

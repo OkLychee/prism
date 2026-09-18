@@ -27,5 +27,21 @@ export const settingsApi = {
       throw new Error(errorData.error || 'Failed to save settings');
     }
   },
-};
 
+  // Generate a new random MCP API key on the server (revokes the previous one)
+  async regenerateMcpKey(): Promise<string> {
+    const res = await customFetch(`${API_BASE}/settings/mcp-key`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Failed to generate MCP key');
+    return data.data?.mcp_api_key || '';
+  },
+
+  // Clear the MCP API key (disables the /mcp endpoint)
+  async clearMcpKey(): Promise<void> {
+    const res = await customFetch(`${API_BASE}/settings/mcp-key`, { method: 'DELETE' });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to clear MCP key');
+    }
+  },
+};

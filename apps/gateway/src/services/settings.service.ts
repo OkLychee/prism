@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { SystemSettingsResponse, SystemSettingsPayload } from '@oklychee/prism-shared';
+import type { SystemSettingsResponse } from '@oklychee/prism-shared';
 import { Database } from '../db';
 import { systemSettings } from '../db/schema';
 
@@ -28,7 +28,7 @@ export class SettingsService {
     return row ? row.value : null;
   }
 
-  async saveSettings(settings: SystemSettingsPayload): Promise<void> {
+  async saveSettings(settings: Record<string, string | undefined>): Promise<void> {
     const now = Date.now();
     for (const [key, value] of Object.entries(settings)) {
       if (value === undefined) continue;

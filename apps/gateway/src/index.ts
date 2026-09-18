@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { GatewayContext } from './types';
 import apiRouter from './routes/api';
 import { createProtocolRouter } from './routes/protocol';
+import mcpRouter from './routes/mcp';
 
 const app = new Hono<GatewayContext>();
 
@@ -12,7 +13,7 @@ app.use(
   cors({
     origin: '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+    allowHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'Mcp-Session-Id', 'Mcp-Protocol-Version'],
   })
 );
 
@@ -23,6 +24,9 @@ app.get('/health', (c) => {
 
 // Register Dashboard REST API Router
 app.route('/api', apiRouter);
+
+// Register MCP Server (interview records & trajectories, Bearer key from global settings)
+app.route('/mcp', mcpRouter);
 
 // Register LLM Gateway Protocol Routers
 app.route('/openai', createProtocolRouter('openai'));
