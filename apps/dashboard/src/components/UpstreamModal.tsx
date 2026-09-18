@@ -4,6 +4,10 @@ import { X, Layers, Key, Link as LinkIcon, Server, ShieldCheck, ShieldAlert, Tra
 import type { UpstreamConfig } from '@oklychee/prism-shared';
 import { Badge } from './ui';
 
+const CUSTOM_AIG_PREFIX = 'custom-';
+const CUSTOM_AIG_OPTION = '__custom__';
+const CUSTOM_AIG_NAME_PATTERN = /^[a-z0-9_-]+$/;
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -21,6 +25,8 @@ export const UpstreamModal: React.FC<Props> = ({
   const [name, setName] = useState('');
   const [providerType, setProviderType] = useState<'cf_workers_ai' | 'cf_ai_gateway' | 'custom'>('cf_ai_gateway');
   const [cfAigProvider, setCfAigProvider] = useState<string>('openai');
+  // Custom AI Gateway provider name (the part after the fixed 'custom-' prefix)
+  const [customAigName, setCustomAigName] = useState('');
   const [apiProtocol, setApiProtocol] = useState<'openai' | 'anthropic'>('openai');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -34,7 +40,14 @@ export const UpstreamModal: React.FC<Props> = ({
     if (editingConfig) {
       setName(editingConfig.name || '');
       setProviderType(editingConfig.provider_type || 'cf_ai_gateway');
-      setCfAigProvider(editingConfig.cf_aig_provider || 'openai');
+      const aigProvider = editingConfig.cf_aig_provider || 'openai';
+      if (aigProvider.startsWith(CUSTOM_AIG_PREFIX)) {
+        setCfAigProvider(CUSTOM_AIG_OPTION);
+        setCustomAigName(aigProvider.slice(CUSTOM_AIG_PREFIX.length));
+      } else {
+        setCfAigProvider(aigProvider);
+        setCustomAigName('');
+      }
       setApiProtocol(editingConfig.api_protocol || 'openai');
       setBaseUrl(editingConfig.base_url || '');
       setApiKey(''); // Reset input
@@ -48,6 +61,7 @@ export const UpstreamModal: React.FC<Props> = ({
       setName('');
       setProviderType('cf_ai_gateway');
       setCfAigProvider('openai');
+      setCustomAigName('');
       setApiProtocol('openai');
       setBaseUrl('https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai');
       setApiKey('');
@@ -57,6 +71,10 @@ export const UpstreamModal: React.FC<Props> = ({
   }, [editingConfig, isOpen]);
 
   if (!isOpen) return null;
+
+  const isCustomAig = providerType === 'cf_ai_gateway' && cfAigProvider === CUSTOM_AIG_OPTION;
+  const isCustomAigNameValid = CUSTOM_AIG_NAME_PATTERN.test(customAigName);
+  const showApiProtocol = providerType === 'custom' || isCustomAig;
 
   const handleApplyPreset = (preset: 'openai' | 'anthropic' | 'google' | 'grok' | 'openrouter' | 'cf_workers_ai') => {
     if (preset === 'cf_workers_ai') {
@@ -112,6 +130,7 @@ export const UpstreamModal: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (isCustomAig && !isCustomAigNameValid) return;
 
     setIsSubmitting(true);
     try {
@@ -124,8 +143,8 @@ export const UpstreamModal: React.FC<Props> = ({
         id: editingConfig?.id,
         name,
         provider_type: providerType,
-        cf_aig_provider: cfAigProvider,
-        api_protocol: providerType === 'custom' ? apiProtocol : 'openai',
+        cf_aig_provider: isCustomAig ? `${CUSTOM_AIG_PREFIX}${customAigName}` : cfAigProvider,
+        api_protocol: showApiProtocol ? apiProtocol : 'openai',
         base_url: providerType === 'custom' ? baseUrl : '',
         available_models: modelsArray,
       };
@@ -271,12 +290,41 @@ export const UpstreamModal: React.FC<Props> = ({
                 <option value="google-ai-studio">Google AI Studio</option>
                 <option value="grok">xAI / Grok</option>
                 <option value="openrouter">OpenRouter</option>
+                <option value={CUSTOM_AIG_OPTION}>{t('upstreams.customAigProvider')}</option>
               </select>
             </div>
           )}
 
-          {/* API Protocol (Only visible when custom) */}
-          {providerType === 'custom' && (
+          {/* Custom AI Gateway Provider Name (Only visible when custom provider selected) */}
+          {isCustomAig && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-color-text-muted">{t('upstreams.customAigProviderName')} *</label>
+              <div className="flex items-stretch bg-color-bg-card border border-theme-border rounded-xl focus-within:border-primary-red transition overflow-hidden">
+                <span className="px-3 py-2 text-xs font-mono text-color-text-muted border-r border-theme-border select-none">
+                  {CUSTOM_AIG_PREFIX}
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={customAigName}
+                  onChange={(e) => {
+                    let value = e.target.value.trim().toLowerCase();
+                    // Tolerate users pasting the full slug including the prefix
+                    if (value.startsWith(CUSTOM_AIG_PREFIX)) value = value.slice(CUSTOM_AIG_PREFIX.length);
+                    setCustomAigName(value);
+                  }}
+                  placeholder="my-provider"
+                  className="flex-1 min-w-0 px-3 py-2 bg-transparent text-xs font-mono text-color-text-main placeholder-color-text-muted/50 focus:outline-none"
+                />
+              </div>
+              <p className={`text-[11px] ${customAigName && !isCustomAigNameValid ? 'text-rose-400' : 'text-color-text-muted/75'}`}>
+                {t('upstreams.customAigProviderTip')}
+              </p>
+            </div>
+          )}
+
+          {/* API Protocol (Only visible when custom endpoint or custom AI Gateway provider) */}
+          {showApiProtocol && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-color-text-muted">{t('upstreams.apiProtocol')}</label>
               <select
@@ -381,7 +429,7 @@ export const UpstreamModal: React.FC<Props> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !name.trim()}
+              disabled={isSubmitting || !name.trim() || (isCustomAig && !isCustomAigNameValid)}
               className="px-5 py-2 bg-primary-red hover:bg-primary-red-hover disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer"
             >
               {isSubmitting ? t('common.loading') : t('upstreams.save')}

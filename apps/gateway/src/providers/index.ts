@@ -4,6 +4,7 @@ import { AnthropicProviderHandler } from './anthropic';
 import { GoogleAiStudioProviderHandler } from './google';
 import { GrokProviderHandler } from './grok';
 import { OpenRouterProviderHandler } from './openrouter';
+import { CustomAigProviderHandler, isCustomAigProvider } from './custom';
 
 export * from './base';
 export * from './openai';
@@ -11,6 +12,7 @@ export * from './anthropic';
 export * from './google';
 export * from './grok';
 export * from './openrouter';
+export * from './custom';
 
 export class ProviderFactory {
   private static handlers: Record<string, ProviderHandler> = {
@@ -24,6 +26,9 @@ export class ProviderFactory {
 
   static getHandler(slug: string): ProviderHandler {
     const normalized = (slug || 'openai').toLowerCase().trim();
+    if (isCustomAigProvider(normalized)) {
+      return new CustomAigProviderHandler(normalized);
+    }
     return this.handlers[normalized] || this.handlers['openai'];
   }
 }

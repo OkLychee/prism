@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS upstream_configs (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     provider_type TEXT NOT NULL, -- 'cf_workers_ai' | 'cf_ai_gateway' | 'custom'
-    cf_aig_provider TEXT, -- 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter' (Required when provider_type='cf_ai_gateway')
+    cf_aig_provider TEXT, -- 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter' | 'custom-{name}' (Required when provider_type='cf_ai_gateway')
     api_protocol TEXT NOT NULL DEFAULT 'openai', -- 'openai' | 'anthropic'
     base_url TEXT NOT NULL,
     api_key TEXT NOT NULL,

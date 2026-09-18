@@ -106,7 +106,9 @@ export const UpstreamsPage: React.FC = () => {
                     </span>
                   )}
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/15 text-indigo-400">
-                    {item.api_protocol || 'openai'}
+                    {item.provider_type === 'cf_ai_gateway' && item.cf_aig_provider === 'anthropic'
+                      ? 'openai / anthropic'
+                      : item.api_protocol || 'openai'}
                   </span>
                 </div>
 

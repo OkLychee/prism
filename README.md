@@ -16,7 +16,7 @@ It provides visual candidate evaluation, token quota management, and full prompt
   - Seamlessly transforms payloads, headers (`anthropic-version`), JSON responses, and SSE `TransformStream` events between OpenAI and Anthropic formats.
 - **Flexible Provider Support**:
   - **Cloudflare Workers AI**: Native support for `@cf/*` free & cost-effective models with zero configuration.
-  - **Cloudflare AI Gateway**: Supports Provider Native routing (OpenAI, Anthropic, Google AI Studio, Grok/xAI, OpenRouter) with Cloudflare Unified Billing or Cloudflare Hosted BYOK.
+  - **Cloudflare AI Gateway**: Supports Provider Native routing (OpenAI, Anthropic, Google AI Studio, Grok/xAI, OpenRouter, and custom providers prefixed with `custom-`) with Cloudflare Unified Billing or Cloudflare Hosted BYOK.
   - **Custom Provider (BYOK)**: Supports custom Base URLs and private API Keys.
 - **Candidate Key & Quota Management**:
   - Easily set token limits, allowed model whitelists, and expiration dates for candidate API Keys.

@@ -64,10 +64,23 @@ export async function proxyAndAuditRequest(
   const cfApiToken = globalSettings.cf_api_token || '';
 
   // Target upstream protocol format (default to 'openai' if unspecified)
-  const upstreamProtocol = customConfig?.api_protocol || 'openai';
+  // Built-in Anthropic via AI Gateway serves both formats natively (/v1/messages & OpenAI-compatible
+  // /v1/chat/completions), so follow the client protocol instead of translating.
+  const isAigBuiltinAnthropic =
+    customConfig?.provider_type === 'cf_ai_gateway' &&
+    (customConfig.cf_aig_provider || '').toLowerCase().trim() === 'anthropic';
+  const upstreamProtocol = isAigBuiltinAnthropic ? protocol : customConfig?.api_protocol || 'openai';
 
   // Determine if cross-protocol translation is needed (Anthropic Agent -> OpenAI Upstream)
   const isAnthropicToOpenAi = protocol === 'anthropic' && upstreamProtocol === 'openai';
+
+  // Anthropic usage reports input_tokens EXCLUDING cache reads/writes, while OpenAI prompt_tokens includes
+  // cached tokens. Normalize to the OpenAI convention (prompt = total input) used by quota & logs.
+  // The upstream response format follows the forwarded request format (no OpenAI -> Anthropic translation),
+  // so it is Anthropic only when both the client and the upstream speak Anthropic.
+  const isAnthropicResponse = protocol === 'anthropic' && upstreamProtocol === 'anthropic';
+  const normalizePromptTokens = (inputTokens: number, cacheRead: number, cacheCreation: number) =>
+    isAnthropicResponse ? inputTokens + cacheRead + cacheCreation : inputTokens;
 
   const forwardedPayload = isAnthropicToOpenAi
     ? anthropicToOpenAiPayload(bodyJson)
@@ -160,6 +173,7 @@ export async function proxyAndAuditRequest(
         upstreamApiKey,
         effectiveUpstreamPath,
         customBaseUrl: customConfig.base_url,
+        apiProtocol: upstreamProtocol as 'openai' | 'anthropic',
         incomingHeaders: request.headers,
       });
 
@@ -332,10 +346,12 @@ export async function proxyAndAuditRequest(
               if (usageObj) {
                 promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? promptTokens;
                 completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? completionTokens;
+                // Prefer Anthropic's explicit field: some Anthropic-compatible upstreams also send
+                // input_tokens_details.cached_tokens = 0 alongside the real cache_read_input_tokens
                 cacheReadInputTokens =
+                  usageObj.cache_read_input_tokens ??
                   usageObj.prompt_tokens_details?.cached_tokens ??
                   usageObj.input_tokens_details?.cached_tokens ??
-                  usageObj.cache_read_input_tokens ??
                   cacheReadInputTokens;
                 cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? cacheCreationInputTokens;
               } else if (parsed.type === 'message_start' && parsed.message?.usage) {
@@ -350,6 +366,8 @@ export async function proxyAndAuditRequest(
             }
           }
         }
+
+        promptTokens = normalizePromptTokens(promptTokens, cacheReadInputTokens, cacheCreationInputTokens);
 
         // Quota deduction: Only charge uncached prompt tokens + completion tokens
         const uncachedPromptTokens = Math.max(0, promptTokens - cacheReadInputTokens);
@@ -424,15 +442,17 @@ export async function proxyAndAuditRequest(
             promptTokens = usageObj.prompt_tokens ?? usageObj.input_tokens ?? 0;
             completionTokens = usageObj.completion_tokens ?? usageObj.output_tokens ?? 0;
             cacheReadInputTokens =
+              usageObj.cache_read_input_tokens ??
               usageObj.prompt_tokens_details?.cached_tokens ??
               usageObj.input_tokens_details?.cached_tokens ??
-              usageObj.cache_read_input_tokens ??
               0;
             cacheCreationInputTokens = usageObj.cache_creation_input_tokens ?? 0;
           }
         } catch {
           // Ignore parsing errors
         }
+
+        promptTokens = normalizePromptTokens(promptTokens, cacheReadInputTokens, cacheCreationInputTokens);
 
         const uncachedPromptTokens = Math.max(0, promptTokens - cacheReadInputTokens);
         const quotaDeductionTokens = uncachedPromptTokens + completionTokens;

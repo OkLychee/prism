@@ -2,7 +2,7 @@ export interface UpstreamConfig {
   id: string;
   name: string;
   provider_type: 'cf_workers_ai' | 'cf_ai_gateway' | 'custom';
-  cf_aig_provider?: string; // 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter'
+  cf_aig_provider?: string; // 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter' | 'custom-{name}'
   api_protocol: 'openai' | 'anthropic';
   base_url: string;
   api_key: string;

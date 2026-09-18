@@ -77,7 +77,7 @@ wire_api = "responses"`,
     },
     aider: {
       name: 'Aider CLI',
-      config: `export OPENAI_API_BASE="${baseUrl}"\nexport OPENAI_API_KEY="${key}"\naider --model openai/gpt-4o`,
+      config: `# Pick any authorized model: ${availableModelsHint}\nexport OPENAI_API_BASE="${baseUrl}"\nexport OPENAI_API_KEY="${key}"\naider --model openai/${defaultModel}`,
       unset: `unset OPENAI_API_BASE\nunset OPENAI_API_KEY`
     }
   };

@@ -5,7 +5,7 @@ export const upstreamConfigs = sqliteTable('upstream_configs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   provider_type: text('provider_type').notNull(), // 'cf_workers_ai' | 'cf_ai_gateway' | 'custom'
-  cf_aig_provider: text('cf_aig_provider'), // 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter'
+  cf_aig_provider: text('cf_aig_provider'), // 'openai' | 'anthropic' | 'google-ai-studio' | 'grok' | 'openrouter' | 'custom-{name}'
   api_protocol: text('api_protocol').notNull().default('openai'), // 'openai' | 'anthropic'
   base_url: text('base_url').notNull(),
   api_key: text('api_key').notNull(),

@@ -2,6 +2,65 @@ import { eq, like, desc, sql } from 'drizzle-orm';
 import type { UpstreamConfig } from '@oklychee/prism-shared';
 import { Database } from '../db';
 import { upstreamConfigs } from '../db/schema';
+import { CUSTOM_AIG_PROVIDER_PATTERN, isCustomAigProvider } from '../providers/custom';
+
+function resolveCfAigProvider(providerType: string, raw?: string): string {
+  const cfAigProvider = (raw || 'openai').trim();
+  if (providerType === 'cf_ai_gateway' && isCustomAigProvider(cfAigProvider)) {
+    const normalized = cfAigProvider.toLowerCase();
+    if (!CUSTOM_AIG_PROVIDER_PATTERN.test(normalized)) {
+      throw new Error(
+        `Invalid custom AI Gateway provider '${cfAigProvider}': must match 'custom-' followed by lowercase letters, digits, '-' or '_'`
+      );
+    }
+    return normalized;
+  }
+  return cfAigProvider;
+}
+
+type UpstreamInput = {
+  name?: string;
+  provider_type?: string;
+  cf_aig_provider?: string;
+  api_protocol?: string;
+  base_url?: string;
+  api_key?: string;
+  available_models?: string[];
+};
+
+function normalizeUpstreamInput(data: UpstreamInput) {
+  const providerType = data.provider_type || 'cf_ai_gateway';
+  const cfAigProvider = resolveCfAigProvider(providerType, data.cf_aig_provider);
+  const isCustomAig = providerType === 'cf_ai_gateway' && isCustomAigProvider(cfAigProvider);
+
+  let apiProtocol = data.api_protocol === 'anthropic' ? 'anthropic' : 'openai';
+  // Built-in AI Gateway providers & Workers AI always speak OpenAI format; custom AIG providers may choose
+  if (providerType === 'cf_workers_ai' || (providerType === 'cf_ai_gateway' && !isCustomAig)) {
+    apiProtocol = 'openai';
+  }
+
+  let baseUrl = data.base_url || '';
+  if (providerType === 'cf_ai_gateway') {
+    baseUrl = `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/${cfAigProvider}`;
+  } else if (providerType === 'cf_workers_ai') {
+    baseUrl = '';
+  }
+
+  // Workers AI never stores a provider key
+  let apiKey = data.api_key === undefined ? undefined : data.api_key.trim();
+  if (providerType === 'cf_workers_ai') {
+    apiKey = '';
+  }
+
+  return {
+    provider_type: providerType,
+    cf_aig_provider: cfAigProvider,
+    api_protocol: apiProtocol,
+    base_url: baseUrl,
+    api_key: apiKey,
+    available_models: JSON.stringify(data.available_models || []),
+  };
+}
 
 export class UpstreamService {
   constructor(private db: Database) {}
@@ -36,138 +95,43 @@ export class UpstreamService {
     }));
   }
 
-  async createUpstream(data: {
-    name?: string;
-    provider_type?: string;
-    cf_aig_provider?: string;
-    api_protocol?: string;
-    base_url?: string;
-    api_key?: string;
-    available_models?: string[];
-  }) {
+  async createUpstream(data: UpstreamInput) {
     const id = `upstream_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const name = data.name || 'Custom Provider';
-    const providerType = data.provider_type || 'cf_ai_gateway';
-    const cfAigProvider = data.cf_aig_provider || 'openai';
-
-    let apiProtocol = data.api_protocol || 'openai';
-    if (providerType === 'cf_ai_gateway' || providerType === 'cf_workers_ai') {
-      apiProtocol = 'openai';
-    }
-
-    let baseUrl = data.base_url || '';
-    if (providerType === 'cf_ai_gateway') {
-      baseUrl = `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/${cfAigProvider}`;
-    } else if (providerType === 'cf_workers_ai') {
-      baseUrl = '';
-    }
-
-    let apiKey = data.api_key || '';
-    if (providerType === 'cf_workers_ai') {
-      apiKey = '';
-    }
-
-    const availableModels = JSON.stringify(data.available_models || []);
+    const fields = normalizeUpstreamInput(data);
     const createdAt = Date.now();
 
     await this.db.insert(upstreamConfigs).values({
       id,
       name,
-      provider_type: providerType,
-      cf_aig_provider: cfAigProvider,
-      api_protocol: apiProtocol,
-      base_url: baseUrl,
-      api_key: apiKey,
-      available_models: availableModels,
+      ...fields,
+      api_key: fields.api_key ?? '',
       created_at: createdAt,
     });
 
     return {
       id,
       name,
-      provider_type: providerType,
-      cf_aig_provider: cfAigProvider,
-      api_protocol: apiProtocol,
-      base_url: baseUrl,
-      api_key: apiKey ? '******' : '',
+      ...fields,
+      api_key: fields.api_key ? '******' : '',
       available_models: data.available_models || [],
       created_at: createdAt,
     };
   }
 
-  async updateUpstream(
-    id: string,
-    data: {
-      name?: string;
-      provider_type?: string;
-      cf_aig_provider?: string;
-      api_protocol?: string;
-      base_url?: string;
-      api_key?: string;
-      available_models?: string[];
-    }
-  ) {
-    const providerType = data.provider_type || 'cf_ai_gateway';
-    const cfAigProvider = data.cf_aig_provider || 'openai';
+  async updateUpstream(id: string, data: UpstreamInput) {
+    const fields = normalizeUpstreamInput(data);
+    // api_key undefined means "keep the stored key"
+    const { api_key, ...rest } = fields;
 
-    let apiProtocol = data.api_protocol || 'openai';
-    if (providerType === 'cf_ai_gateway' || providerType === 'cf_workers_ai') {
-      apiProtocol = 'openai';
-    }
-
-    let baseUrl = data.base_url || '';
-    if (providerType === 'cf_ai_gateway') {
-      baseUrl = `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/${cfAigProvider}`;
-    } else if (providerType === 'cf_workers_ai') {
-      baseUrl = '';
-    }
-
-    let apiKey = data.api_key || '';
-    if (providerType === 'cf_workers_ai') {
-      apiKey = '';
-    }
-
-    const availableModels = JSON.stringify(data.available_models || []);
-
-    if (providerType === 'cf_workers_ai') {
-      await this.db
-        .update(upstreamConfigs)
-        .set({
-          name: data.name,
-          provider_type: providerType,
-          cf_aig_provider: cfAigProvider,
-          api_protocol: apiProtocol,
-          base_url: baseUrl,
-          api_key: '',
-          available_models: availableModels,
-        })
-        .where(eq(upstreamConfigs.id, id));
-    } else if (data.api_key !== undefined) {
-      await this.db
-        .update(upstreamConfigs)
-        .set({
-          name: data.name,
-          provider_type: providerType,
-          cf_aig_provider: cfAigProvider,
-          api_protocol: apiProtocol,
-          base_url: baseUrl,
-          api_key: data.api_key.trim(),
-          available_models: availableModels,
-        })
-        .where(eq(upstreamConfigs.id, id));
-    } else {
-      await this.db
-        .update(upstreamConfigs)
-        .set({
-          name: data.name,
-          provider_type: providerType,
-          cf_aig_provider: cfAigProvider,
-          api_protocol: apiProtocol,
-          base_url: baseUrl,
-          available_models: availableModels,
-        })
-        .where(eq(upstreamConfigs.id, id));
-    }
+    await this.db
+      .update(upstreamConfigs)
+      .set({
+        name: data.name,
+        ...rest,
+        ...(api_key !== undefined ? { api_key } : {}),
+      })
+      .where(eq(upstreamConfigs.id, id));
   }
 
   async deleteUpstream(id: string) {
