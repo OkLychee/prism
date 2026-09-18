@@ -34,5 +34,7 @@ export const api = {
 
   getSettings: settingsApi.getSettings,
   saveSettings: settingsApi.saveSettings,
+  regenerateMcpKey: settingsApi.regenerateMcpKey,
+  clearMcpKey: settingsApi.clearMcpKey,
 };
 

@@ -60,6 +60,7 @@ export interface SystemSettingsResponse {
   admin_username?: string;
   timezone_mode?: 'UTC' | 'system';
   log_storage_engine?: 'd1' | 'r2';
+  mcp_api_key?: string; // Bearer key for the /mcp endpoint; empty disables MCP
 }
 
 export interface SystemSettingsPayload {

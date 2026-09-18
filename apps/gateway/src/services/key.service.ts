@@ -21,6 +21,19 @@ export class KeyService {
     }));
   }
 
+  async getKeyById(id: string): Promise<InterviewKey | null> {
+    const [r] = await this.db.select().from(interviewKeys).where(eq(interviewKeys.id, id)).limit(1);
+    if (!r) return null;
+
+    return {
+      ...r,
+      quota_type: r.quota_type as 'tokens' | 'usd',
+      status: r.status as 'active' | 'expired' | 'exhausted' | 'revoked',
+      timezone: r.timezone || 'UTC',
+      allowed_models: JSON.parse(r.allowed_models || '[]'),
+    };
+  }
+
   async createKey(data: {
     candidate_name?: string;
     quota_type?: 'tokens' | 'usd';

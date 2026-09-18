@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD } from '@oklychee/prism-shared';
+import { DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, MCP_API_KEY_PREFIX } from '@oklychee/prism-shared';
 import { GatewayContext } from '../types';
 import { KeyService } from '../services/key.service';
 import { UpstreamService } from '../services/upstream.service';
@@ -247,29 +247,12 @@ api.get('/logs/:id/detail', async (c) => {
     return c.json({ error: 'Log record not found' }, 404);
   }
 
-  let fullPayload = logRecord.full_payload;
-  let responseContent = logRecord.response_content;
-
-  // If stored in R2, fetch the full content JSON from LOG_BUCKET
-  if (logRecord.r2_log_key && c.env.LOG_BUCKET) {
-    try {
-      const r2Object = await c.env.LOG_BUCKET.get(logRecord.r2_log_key);
-      if (r2Object) {
-        const jsonText = await r2Object.text();
-        const parsed = JSON.parse(jsonText);
-        fullPayload = JSON.stringify(parsed.full_payload || {});
-        responseContent = parsed.response_content || '';
-      }
-    } catch (err) {
-      console.error('Failed to read log from R2 bucket:', err);
-    }
-  }
+  const content = await auditService.loadLogContent(logRecord, c.env.LOG_BUCKET);
 
   return c.json({
     data: {
       ...logRecord,
-      full_payload: fullPayload,
-      response_content: responseContent,
+      ...content,
     },
   });
 });
@@ -330,6 +313,8 @@ api.get('/settings', async (c) => {
     admin_username: rawData.admin_username || DEFAULT_ADMIN_USERNAME,
     timezone_mode: (rawData.timezone_mode as 'UTC' | 'system') || 'UTC',
     log_storage_engine: (rawData.log_storage_engine as 'd1' | 'r2') || 'd1',
+    // Returned in full so the admin can copy it into MCP client configs; empty means MCP is disabled
+    mcp_api_key: rawData.mcp_api_key || '',
   };
 
   return c.json({ data: response });
@@ -390,5 +375,21 @@ api.post('/settings', async (c) => {
   }
 });
 
-export default api;
+// 10. POST /api/settings/mcp-key - Generate a new random MCP API key (revokes the previous one)
+// MCP keys are server-generated only; manual input is intentionally not supported.
+api.post('/settings/mcp-key', async (c) => {
+  const randomBytes = new Uint8Array(24);
+  crypto.getRandomValues(randomBytes);
+  const mcpApiKey = `${MCP_API_KEY_PREFIX}${Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 
+  await new SettingsService(getDb(c.env.DB)).saveSettings({ mcp_api_key: mcpApiKey });
+  return c.json({ data: { mcp_api_key: mcpApiKey } });
+});
+
+// 11. DELETE /api/settings/mcp-key - Clear the MCP API key (disables the /mcp endpoint)
+api.delete('/settings/mcp-key', async (c) => {
+  await new SettingsService(getDb(c.env.DB)).saveSettings({ mcp_api_key: '' });
+  return c.json({ success: true });
+});
+
+export default api;
